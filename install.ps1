@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-core-robocopy"
+$DownloadVersion = "20260602-powershell-copy"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -66,6 +66,127 @@ function Show-Menu {
             }
         }
     }
+}
+
+function Get-LethalCompanyProfilePath {
+    $candidates = @(
+        (Join-Path $env:APPDATA "r2modmanPlus-local\LethalCompany\profiles\Default"),
+        (Join-Path $env:APPDATA "Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Default")
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        $profilesRoot = Split-Path $candidate -Parent
+        if (Test-Path $profilesRoot) {
+            return $candidate
+        }
+    }
+
+    Write-Host "[안내] Thunderstore Default 프로필 경로를 자동으로 찾지 못했습니다." -ForegroundColor Yellow
+    Write-Host "Thunderstore에서 Lethal Company - Default 프로필을 만든 뒤 다시 실행하는 것이 가장 좋습니다."
+    Write-Host ""
+
+    $fallback = $candidates[0]
+    $manualPath = Read-Host "직접 경로를 붙여넣거나 Enter를 누르면 기본 경로를 사용합니다"
+
+    if ([string]::IsNullOrWhiteSpace($manualPath)) {
+        return $fallback
+    }
+
+    return $manualPath.Trim('"')
+}
+
+function Invoke-RobocopyChecked {
+    param (
+        [string]$Source,
+        [string]$Destination
+    )
+
+    if (-not (Test-Path $Source)) {
+        throw "복사할 폴더가 없습니다: $Source"
+    }
+
+    if (-not (Test-Path $Destination)) {
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    }
+
+    & robocopy $Source $Destination /E /R:2 /W:1
+
+    if ($LASTEXITCODE -ge 8) {
+        throw "복사 실패: $Source -> $Destination"
+    }
+}
+
+function Copy-IfExists {
+    param (
+        [string]$Source,
+        [string]$Destination
+    )
+
+    if (Test-Path $Source) {
+        Copy-Item -Path $Source -Destination $Destination -Force
+    }
+}
+
+function Install-PackToProfile {
+    param (
+        [string]$PackRoot,
+        [string]$Target
+    )
+
+    $sourceBepInEx = Join-Path $PackRoot "BepInEx"
+    $targetBepInEx = Join-Path $Target "BepInEx"
+
+    if (-not (Test-Path $sourceBepInEx)) {
+        throw "압축 파일 안에서 BepInEx 폴더를 찾지 못했습니다."
+    }
+
+    $backupDir = Join-Path $Target ("backup_{0}" -f (Get-Date -Format "yyyy-MM-dd_HH-mm-ss"))
+
+    Write-Host ""
+    Write-Host "설치 대상 경로:"
+    Write-Host $Target
+    Write-Host ""
+    Write-Host "백업 경로:"
+    Write-Host $backupDir
+    Write-Host ""
+
+    New-Item -ItemType Directory -Path $Target -Force | Out-Null
+    New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
+
+    if (Test-Path $targetBepInEx) {
+        Write-Host "기존 BepInEx 백업 중..."
+        Invoke-RobocopyChecked -Source $targetBepInEx -Destination (Join-Path $backupDir "BepInEx")
+    }
+
+    Copy-IfExists -Source (Join-Path $Target "mods.yml") -Destination $backupDir
+    Copy-IfExists -Source (Join-Path $Target "doorstop_config.ini") -Destination $backupDir
+    Copy-IfExists -Source (Join-Path $Target "winhttp.dll") -Destination $backupDir
+
+    Write-Host ""
+    Write-Host "BepInEx 전체 복사 중..."
+    Invoke-RobocopyChecked -Source $sourceBepInEx -Destination $targetBepInEx
+
+    Write-Host ""
+    Write-Host "프로필 루트 파일 복사 중..."
+    Copy-IfExists -Source (Join-Path $PackRoot "mods.yml") -Destination $Target
+    Copy-IfExists -Source (Join-Path $PackRoot "doorstop_config.ini") -Destination $Target
+    Copy-IfExists -Source (Join-Path $PackRoot "winhttp.dll") -Destination $Target
+
+    $coreCheck = Join-Path $targetBepInEx "core\BepInEx.dll"
+
+    if (-not (Test-Path $coreCheck)) {
+        throw "BepInEx\core가 복사되지 않았습니다. 확인 경로: $coreCheck"
+    }
+
+    Write-Host ""
+    Write-Host "BepInEx core 확인 완료:"
+    Write-Host $coreCheck
 }
 
 function Install-Thunderstore {
@@ -135,21 +256,23 @@ function Install-LethalCompanyPack {
     Write-Host $ExtractPath
     Write-Host ""
 
-    $InstallBat = Get-ChildItem -Path $ExtractPath -Filter "install.bat" -Recurse | Select-Object -First 1
+    $packRoot = $ExtractPath
 
-    if (-not $InstallBat) {
-        Write-Host "[오류] 압축 파일 안에서 install.bat을 찾지 못했습니다." -ForegroundColor Red
-        Write-Host ""
-        Write-Host "lethal-company-pack.zip 안에 install.bat이 들어 있어야 합니다."
+    if (-not (Test-Path (Join-Path $packRoot "BepInEx"))) {
+        $packRoot = Get-ChildItem -Path $ExtractPath -Directory -Recurse |
+            Where-Object { Test-Path (Join-Path $_.FullName "BepInEx") } |
+            Select-Object -ExpandProperty FullName -First 1
+    }
+
+    if (-not $packRoot) {
+        Write-Host "[오류] 압축 파일 안에서 BepInEx 폴더를 찾지 못했습니다." -ForegroundColor Red
         Pause-Menu
         return
     }
 
-    Write-Host "install.bat 실행:"
-    Write-Host $InstallBat.FullName
-    Write-Host ""
+    $target = Get-LethalCompanyProfilePath
 
-    Start-Process -FilePath "cmd.exe" -ArgumentList "/c `"$($InstallBat.FullName)`"" -WorkingDirectory $InstallBat.DirectoryName -Wait
+    Install-PackToProfile -PackRoot $packRoot -Target $target
 
     Write-Host ""
     Write-Host "Lethal Company Pack 세팅 완료."
