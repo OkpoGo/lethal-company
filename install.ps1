@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-powershell-copy"
+$DownloadVersion = "20260602-profile-root"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -68,37 +68,65 @@ function Show-Menu {
     }
 }
 
-function Get-LethalCompanyProfilePath {
-    $candidates = @(
-        (Join-Path $env:APPDATA "r2modmanPlus-local\LethalCompany\profiles\Default"),
-        (Join-Path $env:APPDATA "Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Default")
+function Get-LethalCompanyProfilePaths {
+    $profileRoots = @(
+        (Join-Path $env:APPDATA "r2modmanPlus-local\LethalCompany\profiles"),
+        (Join-Path $env:APPDATA "Thunderstore Mod Manager\DataFolder\LethalCompany\profiles"),
+        (Join-Path $env:APPDATA "Thunderstore Mod Manager\LethalCompany\profiles")
     )
 
-    foreach ($candidate in $candidates) {
-        if (Test-Path $candidate) {
-            return $candidate
+    $profiles = @()
+
+    foreach ($root in $profileRoots) {
+        if (Test-Path $root) {
+            $profiles += Get-ChildItem -Path $root -Directory | Select-Object -ExpandProperty FullName
         }
     }
 
-    foreach ($candidate in $candidates) {
-        $profilesRoot = Split-Path $candidate -Parent
-        if (Test-Path $profilesRoot) {
-            return $candidate
+    $profiles = $profiles | Sort-Object -Unique
+
+    if ($profiles.Count -eq 0) {
+        Write-Host "[안내] Lethal Company 프로필 경로를 자동으로 찾지 못했습니다." -ForegroundColor Yellow
+        Write-Host "Thunderstore에서 Lethal Company 프로필을 만든 뒤 다시 실행하는 것이 가장 좋습니다."
+        Write-Host ""
+
+        $fallback = Join-Path $env:APPDATA "r2modmanPlus-local\LethalCompany\profiles\Default"
+        $manualPath = Read-Host "직접 경로를 붙여넣거나 Enter를 누르면 기본 Default 경로를 사용합니다"
+
+        if ([string]::IsNullOrWhiteSpace($manualPath)) {
+            return @($fallback)
         }
+
+        return @($manualPath.Trim('"'))
     }
 
-    Write-Host "[안내] Thunderstore Default 프로필 경로를 자동으로 찾지 못했습니다." -ForegroundColor Yellow
-    Write-Host "Thunderstore에서 Lethal Company - Default 프로필을 만든 뒤 다시 실행하는 것이 가장 좋습니다."
+    if ($profiles.Count -eq 1) {
+        return @($profiles[0])
+    }
+
+    Write-Host "설치할 프로필을 선택하세요."
+    Write-Host "Enter만 누르면 아래 모든 프로필에 설치합니다."
     Write-Host ""
+    Write-Host "0. 모든 프로필에 설치"
 
-    $fallback = $candidates[0]
-    $manualPath = Read-Host "직접 경로를 붙여넣거나 Enter를 누르면 기본 경로를 사용합니다"
-
-    if ([string]::IsNullOrWhiteSpace($manualPath)) {
-        return $fallback
+    for ($i = 0; $i -lt $profiles.Count; $i++) {
+        Write-Host "$($i + 1). $($profiles[$i])"
     }
 
-    return $manualPath.Trim('"')
+    Write-Host ""
+    $choice = Read-Host "번호 입력"
+
+    if ([string]::IsNullOrWhiteSpace($choice) -or $choice -eq "0") {
+        return $profiles
+    }
+
+    $selected = 0
+
+    if ([int]::TryParse($choice, [ref]$selected) -and $selected -ge 1 -and $selected -le $profiles.Count) {
+        return @($profiles[$selected - 1])
+    }
+
+    throw "잘못된 선택입니다: $choice"
 }
 
 function Invoke-RobocopyChecked {
@@ -164,19 +192,19 @@ function Install-PackToProfile {
         Invoke-RobocopyChecked -Source $targetBepInEx -Destination (Join-Path $backupDir "BepInEx")
     }
 
+    if (Test-Path (Join-Path $Target "_state")) {
+        Write-Host "기존 _state 백업 중..."
+        Invoke-RobocopyChecked -Source (Join-Path $Target "_state") -Destination (Join-Path $backupDir "_state")
+    }
+
     Copy-IfExists -Source (Join-Path $Target "mods.yml") -Destination $backupDir
     Copy-IfExists -Source (Join-Path $Target "doorstop_config.ini") -Destination $backupDir
+    Copy-IfExists -Source (Join-Path $Target ".doorstop_version") -Destination $backupDir
     Copy-IfExists -Source (Join-Path $Target "winhttp.dll") -Destination $backupDir
 
     Write-Host ""
-    Write-Host "BepInEx 전체 복사 중..."
-    Invoke-RobocopyChecked -Source $sourceBepInEx -Destination $targetBepInEx
-
-    Write-Host ""
-    Write-Host "프로필 루트 파일 복사 중..."
-    Copy-IfExists -Source (Join-Path $PackRoot "mods.yml") -Destination $Target
-    Copy-IfExists -Source (Join-Path $PackRoot "doorstop_config.ini") -Destination $Target
-    Copy-IfExists -Source (Join-Path $PackRoot "winhttp.dll") -Destination $Target
+    Write-Host "프로필 전체 복사 중..."
+    Invoke-RobocopyChecked -Source $PackRoot -Destination $Target
 
     $coreCheck = Join-Path $targetBepInEx "core\BepInEx.dll"
 
@@ -270,14 +298,16 @@ function Install-LethalCompanyPack {
         return
     }
 
-    $target = Get-LethalCompanyProfilePath
+    $targets = Get-LethalCompanyProfilePaths
 
-    Install-PackToProfile -PackRoot $packRoot -Target $target
+    foreach ($target in $targets) {
+        Install-PackToProfile -PackRoot $packRoot -Target $target
+    }
 
     Write-Host ""
     Write-Host "Lethal Company Pack 세팅 완료."
     Write-Host ""
-    Write-Host "Thunderstore에서 Lethal Company - Default 프로필로 Modded 실행하면 됩니다."
+    Write-Host "Thunderstore에서 방금 설치한 프로필로 Modded 실행하면 됩니다."
     Pause-Menu
 }
 
