@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-clean-overwrite"
+$DownloadVersion = "20260602-profile-select-fix"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -312,7 +312,7 @@ function Get-PreferredDoorstopProfile {
     )
 
     $defaultProfile = $Profiles |
-        Where-Object { Split-Path $_ -Leaf -eq "Default" } |
+        Where-Object { (Split-Path -Path $_ -Leaf) -eq "Default" } |
         Select-Object -First 1
 
     if ($defaultProfile) {
