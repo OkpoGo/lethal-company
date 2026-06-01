@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-doorstop-absolute"
+$DownloadVersion = "20260602-clean-overwrite"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -171,6 +171,39 @@ function Copy-IfExists {
 
     if (Test-Path $Source) {
         Copy-Item -Path $Source -Destination $Destination -Force
+    }
+}
+
+function Remove-ProfileItemIfExists {
+    param (
+        [string]$ProfilePath,
+        [string]$ItemName
+    )
+
+    $profileFullPath = [System.IO.Path]::GetFullPath($ProfilePath)
+    $itemPath = Join-Path $profileFullPath $ItemName
+    $itemFullPath = [System.IO.Path]::GetFullPath($itemPath)
+    $profilePrefix = $profileFullPath.TrimEnd("\") + "\"
+
+    if (-not $itemFullPath.StartsWith($profilePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "삭제 대상 경로가 프로필 밖입니다: $itemFullPath"
+    }
+
+    if (Test-Path $itemFullPath) {
+        Remove-Item -LiteralPath $itemFullPath -Recurse -Force
+    }
+}
+
+function Clear-ManagedProfileFiles {
+    param (
+        [string]$ProfilePath
+    )
+
+    Write-Host ""
+    Write-Host "기존 모드 파일 정리 중..."
+
+    foreach ($itemName in @("BepInEx", "_state", "mods.yml", "doorstop_config.ini", ".doorstop_version", "winhttp.dll")) {
+        Remove-ProfileItemIfExists -ProfilePath $ProfilePath -ItemName $itemName
     }
 }
 
@@ -377,6 +410,8 @@ function Install-PackToProfile {
     Copy-IfExists -Source (Join-Path $Target "doorstop_config.ini") -Destination $backupDir
     Copy-IfExists -Source (Join-Path $Target ".doorstop_version") -Destination $backupDir
     Copy-IfExists -Source (Join-Path $Target "winhttp.dll") -Destination $backupDir
+
+    Clear-ManagedProfileFiles -ProfilePath $Target
 
     Write-Host ""
     Write-Host "프로필 전체 복사 중..."
