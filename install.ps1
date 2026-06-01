@@ -1,9 +1,10 @@
 $ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
+$DownloadVersion = "20260602-core-robocopy"
 
-$ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe"
-$PackZipUrl = "$RepoRawBase/lethal-company-pack.zip"
+$ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
+$PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
 
 $TempRoot = Join-Path $env:TEMP "okpogo-lethal-company"
 $InstallerPath = Join-Path $TempRoot "Thunderstore Mod Manager - Installer.exe"
