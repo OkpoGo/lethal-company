@@ -1,7 +1,7 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-profile-select-fix"
+$DownloadVersion = "20260602-profile-path-fix"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -96,7 +96,11 @@ function Get-LethalCompanyProfilePaths {
         }
     }
 
-    $profiles = $profiles | Sort-Object -Unique
+    $profiles = @(
+        $profiles |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+            Sort-Object -Unique
+    )
 
     if ($profiles.Count -eq 0) {
         Write-Host "[안내] Lethal Company 프로필 경로를 자동으로 찾지 못했습니다." -ForegroundColor Yellow
