@@ -1,7 +1,7 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-doorstop-game"
+$DownloadVersion = "20260602-doorstop-absolute"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -201,16 +201,13 @@ function Get-SteamLibraryPaths {
             $lines = Get-Content -Path $libraryFile -ErrorAction SilentlyContinue
 
             foreach ($line in $lines) {
-                $match = [regex]::Match($line, '"path"\s+"(?<path>[^"]+)"|"\d+"\s+"(?<legacy>[^"]+)"')
+                $pathMatch = [regex]::Match($line, '^\s*"path"\s+"(?<path>[^"]+)"')
+                $legacyMatch = [regex]::Match($line, '^\s*"\d+"\s+"(?<legacy>[^"]+)"')
 
-                if ($match.Success) {
-                    $libraryPath = if ($match.Groups["path"].Success) {
-                        $match.Groups["path"].Value
-                    } else {
-                        $match.Groups["legacy"].Value
-                    }
-
-                    $paths += $libraryPath.Replace("\\", "\")
+                if ($pathMatch.Success) {
+                    $paths += $pathMatch.Groups["path"].Value.Replace("\\", "\")
+                } elseif ($legacyMatch.Success) {
+                    $paths += $legacyMatch.Groups["legacy"].Value.Replace("\\", "\")
                 }
             }
         }
@@ -237,9 +234,65 @@ function Get-LethalCompanyGamePath {
     return $manualPath.Trim('"')
 }
 
+function Set-DoorstopTargetAssembly {
+    param (
+        [string]$ConfigPath,
+        [string]$TargetAssembly
+    )
+
+    $targetAssemblyForConfig = $TargetAssembly.Replace("\", "/")
+
+    if (Test-Path $ConfigPath) {
+        $config = Get-Content -Path $ConfigPath -Raw -Encoding UTF8
+
+        if ([regex]::IsMatch($config, "(?m)^target_assembly\s*=.*$")) {
+            $config = [regex]::Replace($config, "(?m)^target_assembly\s*=.*$", "target_assembly=$targetAssemblyForConfig")
+        } else {
+            $config = $config.TrimEnd() + "`r`n" + "target_assembly=$targetAssemblyForConfig" + "`r`n"
+        }
+    } else {
+        $config = @"
+# General options for Unity Doorstop
+[General]
+
+enabled = true
+target_assembly=$targetAssemblyForConfig
+redirect_output_log = false
+boot_config_override =
+ignore_disable_switch = false
+
+[UnityMono]
+dll_search_path_override =
+debug_enabled = false
+debug_address = 127.0.0.1:10000
+debug_suspend = false
+"@
+    }
+
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($ConfigPath, $config, $utf8NoBom)
+}
+
+function Get-PreferredDoorstopProfile {
+    param (
+        [string[]]$Profiles
+    )
+
+    $defaultProfile = $Profiles |
+        Where-Object { Split-Path $_ -Leaf -eq "Default" } |
+        Select-Object -First 1
+
+    if ($defaultProfile) {
+        return $defaultProfile
+    }
+
+    return $Profiles | Select-Object -First 1
+}
+
 function Install-DoorstopToGameFolder {
     param (
-        [string]$PackRoot
+        [string]$PackRoot,
+        [string]$ProfilePath
     )
 
     $gamePath = Get-LethalCompanyGamePath
@@ -254,13 +307,34 @@ function Install-DoorstopToGameFolder {
     Write-Host "게임 폴더 Doorstop 파일 복사 중..."
     Write-Host $gamePath
 
-    foreach ($fileName in @("winhttp.dll", "doorstop_config.ini", ".doorstop_version")) {
+    foreach ($fileName in @("winhttp.dll", ".doorstop_version")) {
         $source = Join-Path $PackRoot $fileName
 
         if (Test-Path $source) {
             Copy-Item -Path $source -Destination $gamePath -Force
         }
     }
+
+    $configSource = Join-Path $PackRoot "doorstop_config.ini"
+    $configDestination = Join-Path $gamePath "doorstop_config.ini"
+
+    if (Test-Path $configSource) {
+        Copy-Item -Path $configSource -Destination $configDestination -Force
+    }
+
+    $targetAssembly = Join-Path $ProfilePath "BepInEx\core\BepInEx.Preloader.dll"
+
+    if (-not (Test-Path $targetAssembly)) {
+        throw "Doorstop 대상 파일을 찾지 못했습니다. 확인 경로: $targetAssembly"
+    }
+
+    Set-DoorstopTargetAssembly -ConfigPath $configDestination -TargetAssembly $targetAssembly
+
+    Write-Host ""
+    Write-Host "Doorstop 대상 프로필:"
+    Write-Host $ProfilePath
+    Write-Host "Doorstop 대상 파일:"
+    Write-Host $targetAssembly
 }
 
 function Install-PackToProfile {
@@ -309,16 +383,19 @@ function Install-PackToProfile {
     Invoke-RobocopyChecked -Source $PackRoot -Destination $Target
 
     $coreCheck = Join-Path $targetBepInEx "core\BepInEx.dll"
+    $preloaderCheck = Join-Path $targetBepInEx "core\BepInEx.Preloader.dll"
 
     if (-not (Test-Path $coreCheck)) {
         throw "BepInEx\core가 복사되지 않았습니다. 확인 경로: $coreCheck"
     }
 
+    if (-not (Test-Path $preloaderCheck)) {
+        throw "BepInEx Preloader가 복사되지 않았습니다. 확인 경로: $preloaderCheck"
+    }
+
     Write-Host ""
     Write-Host "BepInEx core 확인 완료:"
     Write-Host $coreCheck
-
-    Install-DoorstopToGameFolder -PackRoot $PackRoot
 }
 
 function Install-Thunderstore {
@@ -407,6 +484,9 @@ function Install-LethalCompanyPack {
     foreach ($target in $targets) {
         Install-PackToProfile -PackRoot $packRoot -Target $target
     }
+
+    $doorstopProfile = Get-PreferredDoorstopProfile -Profiles $targets
+    Install-DoorstopToGameFolder -PackRoot $packRoot -ProfilePath $doorstopProfile
 
     Write-Host ""
     Write-Host "Lethal Company Pack 세팅 완료."
