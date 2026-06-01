@@ -3,7 +3,7 @@
 친구에게는 아래 PowerShell 명령어 한 줄만 보내면 됩니다.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/OkpoGo/lethal-company/272b614c857fec4897dae4e4cc75f730153bbbb0/install.ps1' | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/OkpoGo/lethal-company/118ce54639b38e8f61969748f6b56e21feb3b887/install.ps1' | iex"
 ```
 
 이 명령어는 GitHub에서 `install.ps1`을 바로 내려받아 실행합니다.
