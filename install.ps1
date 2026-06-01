@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-profile-root"
+$DownloadVersion = "20260602-doorstop-game"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
@@ -76,6 +76,19 @@ function Get-LethalCompanyProfilePaths {
     )
 
     $profiles = @()
+    $thunderstoreLog = Join-Path $env:APPDATA "Thunderstore Mod Manager\DataFolder\log.txt"
+
+    if (Test-Path $thunderstoreLog) {
+        $logLines = Get-Content -Path $thunderstoreLog -Tail 200 -ErrorAction SilentlyContinue
+
+        foreach ($line in $logLines) {
+            $match = [regex]::Match($line, '--doorstop-target-assembly"\s+"(?<path>.+?)[/\\]BepInEx[/\\]core[/\\]BepInEx\.Preloader\.dll"')
+
+            if ($match.Success) {
+                $profiles += $match.Groups["path"].Value.Replace("/", "\")
+            }
+        }
+    }
 
     foreach ($root in $profileRoots) {
         if (Test-Path $root) {
@@ -87,14 +100,14 @@ function Get-LethalCompanyProfilePaths {
 
     if ($profiles.Count -eq 0) {
         Write-Host "[안내] Lethal Company 프로필 경로를 자동으로 찾지 못했습니다." -ForegroundColor Yellow
-        Write-Host "Thunderstore에서 Lethal Company 프로필을 만든 뒤 다시 실행하는 것이 가장 좋습니다."
+        Write-Host "Thunderstore에서 Lethal Company 프로필을 만든 뒤 다시 실행하세요."
+        Write-Host "이미 프로필이 있다면 Thunderstore에서 Modded를 한 번 눌렀다가 꺼진 후 다시 실행하면 실제 경로를 찾을 수 있습니다."
         Write-Host ""
 
-        $fallback = Join-Path $env:APPDATA "r2modmanPlus-local\LethalCompany\profiles\Default"
-        $manualPath = Read-Host "직접 경로를 붙여넣거나 Enter를 누르면 기본 Default 경로를 사용합니다"
+        $manualPath = Read-Host "직접 프로필 경로를 붙여넣거나 Enter를 누르면 취소합니다"
 
         if ([string]::IsNullOrWhiteSpace($manualPath)) {
-            return @($fallback)
+            throw "설치할 Thunderstore 프로필 경로가 없습니다."
         }
 
         return @($manualPath.Trim('"'))
@@ -161,6 +174,95 @@ function Copy-IfExists {
     }
 }
 
+function Get-SteamLibraryPaths {
+    $paths = @()
+    $steamRoots = @()
+
+    $defaultSteam = Join-Path ${env:ProgramFiles(x86)} "Steam"
+
+    if (Test-Path $defaultSteam) {
+        $steamRoots += $defaultSteam
+    }
+
+    try {
+        $steamPath = (Get-ItemProperty -Path "HKCU:\Software\Valve\Steam" -Name SteamPath -ErrorAction Stop).SteamPath
+
+        if ($steamPath -and (Test-Path $steamPath)) {
+            $steamRoots += $steamPath
+        }
+    } catch {
+    }
+
+    foreach ($root in ($steamRoots | Sort-Object -Unique)) {
+        $paths += $root
+        $libraryFile = Join-Path $root "steamapps\libraryfolders.vdf"
+
+        if (Test-Path $libraryFile) {
+            $lines = Get-Content -Path $libraryFile -ErrorAction SilentlyContinue
+
+            foreach ($line in $lines) {
+                $match = [regex]::Match($line, '"path"\s+"(?<path>[^"]+)"|"\d+"\s+"(?<legacy>[^"]+)"')
+
+                if ($match.Success) {
+                    $libraryPath = if ($match.Groups["path"].Success) {
+                        $match.Groups["path"].Value
+                    } else {
+                        $match.Groups["legacy"].Value
+                    }
+
+                    $paths += $libraryPath.Replace("\\", "\")
+                }
+            }
+        }
+    }
+
+    return $paths | Sort-Object -Unique
+}
+
+function Get-LethalCompanyGamePath {
+    foreach ($library in Get-SteamLibraryPaths) {
+        $candidate = Join-Path $library "steamapps\common\Lethal Company"
+
+        if (Test-Path (Join-Path $candidate "Lethal Company.exe")) {
+            return $candidate
+        }
+    }
+
+    $manualPath = Read-Host "Lethal Company 게임 설치 폴더를 찾지 못했습니다. 직접 경로를 붙여넣거나 Enter를 누르면 건너뜁니다"
+
+    if ([string]::IsNullOrWhiteSpace($manualPath)) {
+        return $null
+    }
+
+    return $manualPath.Trim('"')
+}
+
+function Install-DoorstopToGameFolder {
+    param (
+        [string]$PackRoot
+    )
+
+    $gamePath = Get-LethalCompanyGamePath
+
+    if (-not $gamePath) {
+        Write-Host "[경고] 게임 설치 폴더를 찾지 못해서 Doorstop 파일 복사를 건너뜁니다." -ForegroundColor Yellow
+        Write-Host "이 경우 Thunderstore에서 Modded를 눌러도 모드가 적용되지 않을 수 있습니다."
+        return
+    }
+
+    Write-Host ""
+    Write-Host "게임 폴더 Doorstop 파일 복사 중..."
+    Write-Host $gamePath
+
+    foreach ($fileName in @("winhttp.dll", "doorstop_config.ini", ".doorstop_version")) {
+        $source = Join-Path $PackRoot $fileName
+
+        if (Test-Path $source) {
+            Copy-Item -Path $source -Destination $gamePath -Force
+        }
+    }
+}
+
 function Install-PackToProfile {
     param (
         [string]$PackRoot,
@@ -215,6 +317,8 @@ function Install-PackToProfile {
     Write-Host ""
     Write-Host "BepInEx core 확인 완료:"
     Write-Host $coreCheck
+
+    Install-DoorstopToGameFolder -PackRoot $PackRoot
 }
 
 function Install-Thunderstore {

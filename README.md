@@ -3,7 +3,7 @@
 친구에게는 아래 PowerShell 명령어 한 줄만 보내면 됩니다.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/OkpoGo/lethal-company/main/install.ps1?v=20260602-profile-root' | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/OkpoGo/lethal-company/main/install.ps1?v=20260602-doorstop-game' | iex"
 ```
 
 이 명령어는 GitHub에서 `install.ps1`을 바로 내려받아 실행합니다.
@@ -75,6 +75,7 @@ Thunderstore의 Lethal Company 프로필을 찾아서 프로필 파일 전체를
 - 2번 메뉴를 실행하기 전에 Thunderstore에서 `Lethal Company - Default` 프로필을 만들어두는 것이 좋습니다.
 - 설치 후에는 Steam에서 그냥 실행하지 말고, 반드시 Thunderstore에서 `Lethal Company` 프로필을 열고 `Modded` 버튼으로 실행하세요.
 - 설치 후에도 적용이 안 보이면 Thunderstore를 완전히 종료했다가 다시 켠 뒤 `Modded`로 실행하세요.
+- 설치 스크립트는 Thunderstore 프로필뿐 아니라 Steam의 `Lethal Company` 게임 폴더에도 Doorstop 로더 파일을 복사합니다.
 - 다운로드가 막히면 PowerShell을 다시 열어서 한 번 더 실행해보세요.
 - 회사, 학교, PC방 네트워크에서는 GitHub 다운로드가 막힐 수 있습니다.
 
