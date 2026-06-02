@@ -1,15 +1,22 @@
 ﻿$ErrorActionPreference = "Stop"
 
 $RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
-$DownloadVersion = "20260602-profile-path-fix"
+$DownloadVersion = "20260602-datafolder-zip"
 
 $ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
-$PackZipUrl = "$RepoRawBase/lethal-company-pack.zip?v=$DownloadVersion"
+$DataFolderZipParts = @(
+    "datafolder-parts/lethal-company-datafolder.zip.001",
+    "datafolder-parts/lethal-company-datafolder.zip.002",
+    "datafolder-parts/lethal-company-datafolder.zip.003",
+    "datafolder-parts/lethal-company-datafolder.zip.004"
+)
+$ExpectedDataFolderZipBytes = 174223888
+$ExpectedDataFolderZipSha256 = "06379147C9FE092A2B06DED11AB2F89CC997234E0ABBF06EEC31105E3E2CAE0F"
 
 $TempRoot = Join-Path $env:TEMP "okpogo-lethal-company"
 $InstallerPath = Join-Path $TempRoot "Thunderstore Mod Manager - Installer.exe"
-$ZipPath = Join-Path $TempRoot "lethal-company-pack.zip"
-$ExtractPath = Join-Path $TempRoot "lethal-company-pack"
+$ZipPath = Join-Path $TempRoot "lethal-company-datafolder.zip"
+$ExtractPath = Join-Path $TempRoot "lethal-company-datafolder"
 
 function Ensure-TempFolder {
     if (-not (Test-Path $TempRoot)) {
@@ -160,7 +167,7 @@ function Invoke-RobocopyChecked {
         New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     }
 
-    & robocopy $Source $Destination /E /R:2 /W:1
+    & robocopy $Source $Destination /E /R:2 /W:1 | Out-Host
 
     if ($LASTEXITCODE -ge 8) {
         throw "복사 실패: $Source -> $Destination"
@@ -473,10 +480,143 @@ function Install-Thunderstore {
     Pause-Menu
 }
 
+function Get-ThunderstoreDataFolderPath {
+    return (Join-Path $env:APPDATA "Thunderstore Mod Manager\DataFolder")
+}
+
+function Get-LethalCompanyDataFolderPath {
+    return (Join-Path (Get-ThunderstoreDataFolderPath) "LethalCompany")
+}
+
+function Download-DataFolderZip {
+    Ensure-TempFolder
+
+    if (Test-Path $ZipPath) {
+        Remove-Item -LiteralPath $ZipPath -Force
+    }
+
+    Write-Host "DataFolder 압축 조각 다운로드 중..."
+
+    $partPaths = @()
+
+    foreach ($partRelativePath in $DataFolderZipParts) {
+        $partName = Split-Path -Path $partRelativePath -Leaf
+        $partUrl = "$RepoRawBase/$partRelativePath?v=$DownloadVersion"
+        $partPath = Join-Path $TempRoot $partName
+
+        if (Test-Path $partPath) {
+            Remove-Item -LiteralPath $partPath -Force
+        }
+
+        Write-Host $partName
+        Invoke-WebRequest -Uri $partUrl -OutFile $partPath
+        $partPaths += $partPath
+    }
+
+    Write-Host ""
+    Write-Host "압축 조각 합치는 중..."
+
+    $outputStream = [System.IO.File]::Open($ZipPath, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write)
+
+    try {
+        foreach ($partPath in $partPaths) {
+            $inputStream = [System.IO.File]::OpenRead($partPath)
+
+            try {
+                $inputStream.CopyTo($outputStream)
+            } finally {
+                $inputStream.Close()
+            }
+        }
+    } finally {
+        $outputStream.Close()
+    }
+
+    $actualBytes = (Get-Item -LiteralPath $ZipPath).Length
+
+    if ($actualBytes -ne $ExpectedDataFolderZipBytes) {
+        throw "압축 파일 크기가 맞지 않습니다. 예상: $ExpectedDataFolderZipBytes, 실제: $actualBytes"
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash
+
+    if ($actualHash -ne $ExpectedDataFolderZipSha256) {
+        throw "압축 파일 해시가 맞지 않습니다. 다운로드가 깨졌을 수 있습니다."
+    }
+
+    Write-Host "압축 파일 확인 완료:"
+    Write-Host $ZipPath
+}
+
+function Get-ExtractedLethalCompanySource {
+    $directPath = Join-Path $ExtractPath "LethalCompany"
+
+    if (Test-Path (Join-Path $directPath "profiles\Default")) {
+        return $directPath
+    }
+
+    $foundPath = Get-ChildItem -Path $ExtractPath -Directory -Recurse |
+        Where-Object {
+            $_.Name -eq "LethalCompany" -and
+            (Test-Path (Join-Path $_.FullName "profiles\Default"))
+        } |
+        Select-Object -ExpandProperty FullName -First 1
+
+    if (-not $foundPath) {
+        throw "압축 파일 안에서 LethalCompany DataFolder를 찾지 못했습니다."
+    }
+
+    return $foundPath
+}
+
+function Replace-LethalCompanyDataFolder {
+    param (
+        [string]$SourceLethalCompany
+    )
+
+    $dataFolderPath = Get-ThunderstoreDataFolderPath
+    $targetLethalCompany = Get-LethalCompanyDataFolderPath
+    $backupPath = Join-Path $dataFolderPath ("backup_LethalCompany_{0}" -f (Get-Date -Format "yyyy-MM-dd_HH-mm-ss"))
+    $dataFolderFullPath = [System.IO.Path]::GetFullPath($dataFolderPath)
+    $targetFullPath = [System.IO.Path]::GetFullPath($targetLethalCompany)
+    $expectedPrefix = $dataFolderFullPath.TrimEnd("\") + "\"
+
+    if ((Split-Path -Path $targetFullPath -Leaf) -ne "LethalCompany") {
+        throw "삭제 대상 폴더 이름이 LethalCompany가 아닙니다: $targetFullPath"
+    }
+
+    if (-not $targetFullPath.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "삭제 대상 경로가 DataFolder 밖입니다: $targetFullPath"
+    }
+
+    New-Item -ItemType Directory -Path $dataFolderPath -Force | Out-Null
+
+    Write-Host ""
+    Write-Host "Thunderstore DataFolder:"
+    Write-Host $dataFolderPath
+
+    if (Test-Path $targetLethalCompany) {
+        Write-Host ""
+        Write-Host "기존 LethalCompany 폴더 백업 중..."
+        Write-Host $backupPath
+        Invoke-RobocopyChecked -Source $targetLethalCompany -Destination $backupPath
+
+        Write-Host ""
+        Write-Host "기존 LethalCompany 폴더 삭제 중..."
+        Remove-Item -LiteralPath $targetLethalCompany -Recurse -Force
+    }
+
+    Write-Host ""
+    Write-Host "새 LethalCompany DataFolder 복사 중..."
+    Invoke-RobocopyChecked -Source $SourceLethalCompany -Destination $targetLethalCompany
+
+    return $targetLethalCompany
+}
+
 function Install-LethalCompanyPack {
     Clear-Host
     Write-Host "=========================================="
-    Write-Host "  2. Lethal Company Pack 다운로드 및 세팅"
+    Write-Host "  2. Lethal Company DataFolder 다운로드 및 세팅"
     Write-Host "=========================================="
     Write-Host ""
 
@@ -490,11 +630,7 @@ function Install-LethalCompanyPack {
         Remove-Item $ZipPath -Force
     }
 
-    Write-Host "lethal-company-pack.zip 다운로드 중..."
-    Write-Host $PackZipUrl
-    Write-Host ""
-
-    Invoke-WebRequest -Uri $PackZipUrl -OutFile $ZipPath
+    Download-DataFolderZip
 
     Write-Host "압축 해제 중..."
     Expand-Archive -Path $ZipPath -DestinationPath $ExtractPath -Force
@@ -504,40 +640,27 @@ function Install-LethalCompanyPack {
     Write-Host $ExtractPath
     Write-Host ""
 
-    $packRoot = $ExtractPath
+    $sourceLethalCompany = Get-ExtractedLethalCompanySource
+    $targetLethalCompany = Replace-LethalCompanyDataFolder -SourceLethalCompany $sourceLethalCompany
+    $doorstopProfile = Join-Path $targetLethalCompany "profiles\Default"
 
-    if (-not (Test-Path (Join-Path $packRoot "BepInEx"))) {
-        $packRoot = Get-ChildItem -Path $ExtractPath -Directory -Recurse |
-            Where-Object { Test-Path (Join-Path $_.FullName "BepInEx") } |
-            Select-Object -ExpandProperty FullName -First 1
+    if (-not (Test-Path (Join-Path $doorstopProfile "BepInEx\core\BepInEx.Preloader.dll"))) {
+        throw "Default 프로필의 BepInEx Preloader를 찾지 못했습니다. 확인 경로: $doorstopProfile"
     }
 
-    if (-not $packRoot) {
-        Write-Host "[오류] 압축 파일 안에서 BepInEx 폴더를 찾지 못했습니다." -ForegroundColor Red
-        Pause-Menu
-        return
-    }
-
-    $targets = Get-LethalCompanyProfilePaths
-
-    foreach ($target in $targets) {
-        Install-PackToProfile -PackRoot $packRoot -Target $target
-    }
-
-    $doorstopProfile = Get-PreferredDoorstopProfile -Profiles $targets
-    Install-DoorstopToGameFolder -PackRoot $packRoot -ProfilePath $doorstopProfile
+    Install-DoorstopToGameFolder -PackRoot $doorstopProfile -ProfilePath $doorstopProfile
 
     Write-Host ""
-    Write-Host "Lethal Company Pack 세팅 완료."
+    Write-Host "Lethal Company DataFolder 세팅 완료."
     Write-Host ""
-    Write-Host "Thunderstore에서 방금 설치한 프로필로 Modded 실행하면 됩니다."
+    Write-Host "Thunderstore에서 Lethal Company - Default 프로필로 Modded 실행하면 됩니다."
     Pause-Menu
 }
 
 while ($true) {
     $choice = Show-Menu @(
         "1. Thunderstore Mod Manager exe 파일부터 설치",
-        "2. lethal-company-pack.zip 다운로드 후 자동 세팅",
+        "2. Lethal Company DataFolder 다운로드 후 자동 세팅",
         "3. 종료"
     )
 
