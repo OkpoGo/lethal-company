@@ -1,23 +1,34 @@
-# OkpoGo Lethal Company 설치 도우미
+# OkpoGo Lethal Company 모드팩
 
-친구에게는 아래 PowerShell 명령어 한 줄만 보내면 됩니다.
+PowerShell에서 아래 명령어를 실행하면 설치 메뉴가 열립니다.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubusercontent.com/OkpoGo/lethal-company/9853301e6df4cc2a65a2530d80855f0f592dfc56/install.ps1' | iex"
+irm https://github.com/OkpoGo/lethal-company/raw/main/go.ps1|iex
 ```
 
-이 명령어는 GitHub에서 `install.ps1`을 바로 내려받아 실행합니다.
-실행하면 메뉴가 뜨고, 필요한 파일은 자동으로 다운로드됩니다.
+위 명령어로 실행이 막히면 아래 명령어를 사용하세요.
 
-## 사용 방법
+```powershell
+powershell -ep bypass -c "irm https://github.com/OkpoGo/lethal-company/raw/main/go.ps1|iex"
+```
 
-1. Windows에서 PowerShell을 엽니다.
-2. 위 명령어를 그대로 복사해서 붙여넣습니다.
-3. Enter를 누릅니다.
-4. 메뉴가 뜨면 방향키로 원하는 항목을 선택하고 Enter를 누릅니다.
-5. 2번 메뉴를 실행하면 Thunderstore의 `DataFolder\LethalCompany` 폴더가 자동으로 세팅됩니다.
+## 설치 순서
 
-메뉴는 아래처럼 나옵니다.
+처음 설치하는 경우:
+
+1. 위 명령어 실행
+2. 메뉴에서 `1. Thunderstore Mod Manager exe 파일부터 설치` 선택
+3. Thunderstore 설치 완료
+4. Thunderstore 실행
+5. `Lethal Company` 선택
+6. `Default` 프로필 만들기
+7. 위 명령어 다시 실행
+8. 메뉴에서 `2. Lethal Company DataFolder 다운로드 후 자동 세팅` 선택
+9. 끝나면 Thunderstore에서 `Lethal Company - Default`로 들어가서 `Modded` 실행
+
+Thunderstore와 `Default` 프로필이 이미 있으면 2번 메뉴만 실행하면 됩니다.
+
+## 메뉴
 
 ```txt
 1. Thunderstore Mod Manager exe 파일부터 설치
@@ -25,79 +36,47 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://raw.githubu
 3. 종료
 ```
 
-## 처음 설치하는 친구
+## 2번이 하는 일
 
-처음 설치하는 친구는 아래 순서대로 하면 됩니다.
-
-1. PowerShell에서 명령어를 실행합니다.
-2. 메뉴에서 `1. Thunderstore Mod Manager exe 파일부터 설치`를 선택합니다.
-3. Thunderstore 설치 창이 뜨면 설치를 끝냅니다.
-4. Thunderstore를 실행합니다.
-5. `Lethal Company`를 선택합니다.
-6. `Default` 프로필을 하나 만듭니다.
-7. 다시 PowerShell 명령어를 실행합니다.
-8. 메뉴에서 `2. Lethal Company DataFolder 다운로드 후 자동 세팅`을 선택합니다.
-9. 설치가 끝나면 Thunderstore에서 `Lethal Company - Default` 프로필로 `Modded` 실행합니다.
-
-## Thunderstore가 이미 설치된 친구
-
-Thunderstore가 이미 설치되어 있고 `Lethal Company - Default` 프로필도 만들어져 있으면 아래처럼 하면 됩니다.
-
-1. PowerShell에서 명령어를 실행합니다.
-2. 메뉴에서 `2. Lethal Company DataFolder 다운로드 후 자동 세팅`을 선택합니다.
-3. 설치가 끝나면 Thunderstore에서 `Lethal Company - Default` 프로필로 `Modded` 실행합니다.
-
-## 각 메뉴 설명
-
-### 1. Thunderstore Mod Manager exe 파일부터 설치
-
-GitHub에 올라가 있는 `Thunderstore Mod Manager - Installer.exe`를 다운로드하고 설치 프로그램을 실행합니다.
-
-설치가 끝나면 Thunderstore에서 `Lethal Company`를 고르고 `Default` 프로필을 만들어야 합니다.
-그 다음 다시 이 스크립트를 실행해서 2번 메뉴를 진행하면 됩니다.
-
-### 2. Lethal Company DataFolder 다운로드 후 자동 세팅
-
-GitHub에 올라가 있는 DataFolder 압축 조각을 다운로드하고 하나의 zip 파일로 다시 합칩니다.
-그 다음 압축을 풀어서 아래 경로에 `LethalCompany` 폴더 전체를 넣습니다.
+2번 메뉴는 GitHub에 올라간 압축 파일 조각을 다운로드한 뒤 하나의 zip 파일로 다시 합칩니다.
+그 다음 아래 위치에 `LethalCompany` 폴더 전체를 설치합니다.
 
 ```txt
 %APPDATA%\Thunderstore Mod Manager\DataFolder
 ```
 
-설치할 때 기존 `LethalCompany` 폴더는 `backup_LethalCompany_날짜_시간` 폴더에 백업됩니다.
-그 다음 기존 `LethalCompany` 폴더를 삭제하고 새 압축 파일 내용으로 다시 넣습니다.
+기존 `LethalCompany` 폴더는 먼저 백업되고, 이후 새 폴더로 교체됩니다.
 
-### 3. 종료
+설치 후 구조는 대략 아래와 같습니다.
 
-설치 도우미를 종료합니다.
+```txt
+DataFolder
+└─ LethalCompany
+   ├─ cache
+   └─ profiles
+      └─ Default
+```
 
-## 주의사항
+또한 Steam 게임 폴더에도 `winhttp.dll`, `doorstop_config.ini`, `.doorstop_version`을 맞춰 넣습니다.
 
-- Windows PowerShell에서 실행하세요.
-- 친구 PC에 Lethal Company가 설치되어 있어야 합니다.
-- 2번 메뉴를 실행하기 전에 Thunderstore에서 `Lethal Company - Default` 프로필을 만들어두는 것이 좋습니다.
-- 설치 후에는 Steam에서 그냥 실행하지 말고, 반드시 Thunderstore에서 `Lethal Company` 프로필을 열고 `Modded` 버튼으로 실행하세요.
-- 설치 후에도 적용이 안 보이면 Thunderstore를 완전히 종료했다가 다시 켠 뒤 `Modded`로 실행하세요.
-- 설치 스크립트는 Thunderstore 프로필뿐 아니라 Steam의 `Lethal Company` 게임 폴더에도 Doorstop 로더 파일을 복사합니다.
-- 2번 메뉴는 기존 `DataFolder\LethalCompany` 폴더를 백업한 뒤 깨끗하게 삭제하고 새 압축 파일로 다시 설치합니다.
-- 친구 PC에서 `Modded`를 눌렀는데 검은 콘솔창이 안 뜨면, 모드 문제가 아니라 BepInEx 로더가 시작되지 않은 상태일 가능성이 큽니다.
-- 그런 경우 2번 메뉴를 다시 실행하세요. 그래도 안 되면 PowerShell을 관리자 권한으로 열어서 같은 명령어를 다시 실행하세요.
-- 다운로드가 막히면 PowerShell을 다시 열어서 한 번 더 실행해보세요.
-- 회사, 학교, PC방 네트워크에서는 GitHub 다운로드가 막힐 수 있습니다.
+## 실행할 때
 
-## 적용 확인 방법
+설치 후 Steam에서 직접 실행하지 말고 Thunderstore에서 `Modded` 버튼으로 실행하세요.
 
-Thunderstore에서 `Modded`로 실행하면 보통 검은 콘솔창이 같이 뜹니다.
-그 콘솔창이 뜨면 BepInEx 로더가 실행된 것입니다.
+정상적으로 적용되면 게임이 켜질 때 검은 콘솔창이 같이 뜹니다.
+그 창이 뜨면 BepInEx가 정상적으로 잡힌 상태입니다.
 
-아래 파일 시간이 방금 실행한 시간으로 바뀌어도 모드 로더가 실행된 것입니다.
+콘솔창이 안 뜨면 PowerShell을 관리자 권한으로 열고 2번 메뉴를 다시 실행하세요.
+
+## 확인용
+
+모드가 제대로 잡히면 아래 파일 시간이 방금 실행한 시간으로 바뀝니다.
 
 ```txt
 %APPDATA%\Thunderstore Mod Manager\DataFolder\LethalCompany\profiles\Default\BepInEx\LogOutput.log
 ```
 
-파일 안에 아래 문구들이 보이면 모드가 로드된 상태입니다.
+파일 안에 아래 내용이 보이면 모드가 로딩된 상태입니다.
 
 ```txt
 14 plugins to load
@@ -106,25 +85,12 @@ Loading [LCKR
 Loading [More Suits
 ```
 
-콘솔창이 안 뜨고 `LogOutput.log` 시간도 안 바뀌면 아래 파일들이 Steam 게임 폴더에 있는지 확인하세요.
-
-```txt
-Steam\steamapps\common\Lethal Company\winhttp.dll
-Steam\steamapps\common\Lethal Company\doorstop_config.ini
-Steam\steamapps\common\Lethal Company\.doorstop_version
-```
-
-특히 `doorstop_config.ini` 안의 `target_assembly`가 아래처럼 Thunderstore 프로필의 `BepInEx.Preloader.dll`을 가리켜야 합니다.
-
-```txt
-target_assembly=C:/Users/사용자명/AppData/Roaming/Thunderstore Mod Manager/DataFolder/LethalCompany/profiles/Default/BepInEx/core/BepInEx.Preloader.dll
-```
-
-## 저장소에 들어 있는 파일
+## 들어있는 것
 
 ```txt
 lethal-company
 ├─ README.md
+├─ go.ps1
 ├─ install.ps1
 ├─ datafolder-parts
 │  ├─ lethal-company-datafolder.zip.001
