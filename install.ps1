@@ -1,9 +1,10 @@
 ﻿$ErrorActionPreference = "Stop"
 
-$RepoRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
+$InstallerRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/main"
+$DataFolderRawBase = "https://raw.githubusercontent.com/OkpoGo/lethal-company/af022681fb77502cd3c3d9daca6681f96df39230"
 $DownloadVersion = "20260602-datafolder-zip"
 
-$ThunderstoreInstallerUrl = "$RepoRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
+$ThunderstoreInstallerUrl = "$InstallerRawBase/Thunderstore%20Mod%20Manager%20-%20Installer.exe?v=$DownloadVersion"
 $DataFolderZipParts = @(
     "datafolder-parts/lethal-company-datafolder.zip.001",
     "datafolder-parts/lethal-company-datafolder.zip.002",
@@ -501,7 +502,7 @@ function Download-DataFolderZip {
 
     foreach ($partRelativePath in $DataFolderZipParts) {
         $partName = Split-Path -Path $partRelativePath -Leaf
-        $partUrl = "$RepoRawBase/$partRelativePath?v=$DownloadVersion"
+        $partUrl = "$DataFolderRawBase/$partRelativePath"
         $partPath = Join-Path $TempRoot $partName
 
         if (Test-Path $partPath) {
